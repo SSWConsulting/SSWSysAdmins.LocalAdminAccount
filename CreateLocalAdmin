@@ -1,0 +1,35 @@
+$config = Import-PowerShellDataFile "$PSScriptRoot\Config.PSD1"
+
+# Creating variables to determine magic strings and getting them from the configuration file
+$User = $config.User
+$Pass = $config.Pass
+$Key = "$PSScriptRoot\aes.key"
+$Password = $Pass | ConvertTo-SecureString -Key (Get-Content $Key)
+$Credentials = New-Object System.Management.Automation.PsCredential($User, $Password)
+
+$ActualPassword = $Credentials.GetNetworkCredential().Password
+
+# Create an array to contain user name
+$user_list = @("$User")
+
+# Create an array to contain user full name
+$user_fullname_list = @("$User")
+
+# Iterate over the user names
+for($i=0; $i -lt $user_list.Length; $i++){
+
+# Create the users
+ $Computer = [ADSI]"WinNT://$Env:COMPUTERNAME,Computer"
+ $LocalAdmin = $Computer.Create("User", $user_list[$i])
+ $LocalAdmin.SetPassword("$ActualPassword")
+ $LocalAdmin.SetInfo()
+ $LocalAdmin.FullName = $user_fullname_list[$i]
+ $LocalAdmin.SetInfo()
+ $LocalAdmin.UserFlags = 64 + 65536 # ADS_UF_PASSWD_CANT_CHANGE + ADS_UF_DONT_EXPIRE_PASSWD
+ $LocalAdmin.SetInfo()
+
+# Add the users to administrators group
+ $group = [ADSI]"WinNT://$Env:COMPUTERNAME/Administrators,group"
+ $group.Add("WinNT://"+$Env:COMPUTERNAME+"/"+$user_list[$i])
+
+}
